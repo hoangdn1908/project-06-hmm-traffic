@@ -1,0 +1,42 @@
+{
+  "synthetic_data_notice": "All scenarios, sequences, and states in this file describe a fictional, synthetic educational simulation modelled on crowd density monitoring at FIT HANU (Khoa Công nghệ Thông tin, Trường Đại học Hà Nội). This is NOT a real traffic feed or a real campus occupancy system.",
+  "scenarios": [
+    {
+      "id": "P06-STABLE-LOW",
+      "class": "stable_low",
+      "description": "Crowd density in the FIT Nhà C hallway stays LOW almost the whole run — typical of an early-morning off-peak slot or the period after 5 PM when most lab sessions have ended. Sensor noise is mild.",
+      "generator": { "length": 40, "seed": 412, "noise_level": 0.05 },
+      "expected_direction": "The estimated hidden state should track LOW for nearly the entire sequence with only rare, brief deviations."
+    },
+    {
+      "id": "P06-RAPID-TRANSITION",
+      "class": "rapid_transition",
+      "description": "Crowd density cycles LOW → HIGH → LOW quickly — typical of a class change when all AIN301 students leave Lab C1 together then quickly leave the building. Stresses the Markov assumption.",
+      "generator": { "length": 50, "seed": 2828, "noise_level": 0.10 },
+      "expected_direction": "The estimated state sequence should move in the same up-then-down direction as the true state, though it may lag by one or two steps."
+    },
+    {
+      "id": "P06-HIGH-NOISE",
+      "class": "high_noise",
+      "description": "Same underlying crowd process as the committed seed-42 run (200-step FIT Nhà C hallway day), but with heavy sensor noise (30%) — e.g. a faulty IR sensor or a camera angle obstructed by a notice board.",
+      "generator": { "length": 200, "seed": 42, "noise_level": 0.30 },
+      "expected_direction": "Estimation accuracy against ground truth should be visibly lower than the noise=0.05 run; exact state recovery at every step is not expected."
+    },
+    {
+      "id": "P06-MISLEADING-OBSERVATIONS",
+      "class": "misleading_observations",
+      "description": "A shorter, heavily-noised run where sensor readings often point away from the true hidden crowd state — simulating a sensor failure near Lab C2 during a busy afternoon at FIT HANU.",
+      "generator": { "length": 150, "seed": 909, "noise_level": 0.30 },
+      "expected_direction": "A naive single-observation heuristic should disagree with the correct hidden-state direction at several steps; report whether your estimator resists this by using the transition model."
+    }
+  ],
+  "required_experiment": {
+    "description": "Run generate_sequence with the same seed and length at noise_level 0.05, 0.15, and 0.30 (the three committed files). Report how estimation accuracy against the ground-truth hidden-state column changes as sensor noise increases. Interpret results in terms of what they mean for a real FIT HANU crowd-monitoring system deployed in Nhà C.",
+    "noise_levels": [0.05, 0.15, 0.30],
+    "committed_files": [
+      "data/sequence_len200_noise05_seed42.csv",
+      "data/sequence_len200_noise15_seed42.csv",
+      "data/sequence_len200_noise30_seed42.csv"
+    ]
+  }
+}

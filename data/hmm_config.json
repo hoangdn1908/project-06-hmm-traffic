@@ -1,0 +1,30 @@
+{
+  "synthetic_data_notice": "All states, observations, and probability values in this file describe a fictional, synthetic educational simulation modelled on a crowd density monitoring scenario at FIT HANU (Khoa Công nghệ Thông tin, Trường Đại học Hà Nội). This is NOT a real traffic feed or a real campus occupancy system.",
+  "context": "Models the hidden crowd density (LOW / MEDIUM / HIGH) in shared spaces at FIT HANU (e.g. the hallway of Nhà C near Lab C1–C3, or the FIT reading area) as estimated from noisy sensor counts. The Markov chain captures how crowd density transitions between class periods throughout a teaching day.",
+  "hidden_states": ["LOW", "MEDIUM", "HIGH"],
+  "observation_symbols": ["LOW", "MEDIUM", "HIGH"],
+  "state_semantics": {
+    "LOW": "Hallway / shared space is nearly empty (between-class or early morning at FIT Nhà C).",
+    "MEDIUM": "Moderate foot traffic — students passing between lectures or arriving for lab sessions.",
+    "HIGH": "Dense crowd — peak period around class change time or during a shared event in Nhà A/C."
+  },
+  "initial_distribution": {
+    "LOW": 0.5,
+    "MEDIUM": 0.35,
+    "HIGH": 0.15
+  },
+  "transition_matrix": {
+    "LOW": { "LOW": 0.75, "MEDIUM": 0.20, "HIGH": 0.05 },
+    "MEDIUM": { "LOW": 0.20, "MEDIUM": 0.60, "HIGH": 0.20 },
+    "HIGH": { "LOW": 0.05, "MEDIUM": 0.25, "HIGH": 0.70 }
+  },
+  "base_emission_matrix": {
+    "LOW": { "LOW": 0.90, "MEDIUM": 0.08, "HIGH": 0.02 },
+    "MEDIUM": { "LOW": 0.10, "MEDIUM": 0.80, "HIGH": 0.10 },
+    "HIGH": { "LOW": 0.02, "MEDIUM": 0.08, "HIGH": 0.90 }
+  },
+  "noise_model": {
+    "description": "generate_sequence.py blends base_emission_matrix with a uniform distribution over observation_symbols, weighted by noise_level: emission[state][obs] = (1 - noise_level) * base_emission_matrix[state][obs] + noise_level * (1 / len(observation_symbols)). Every blended row still sums to 1.0 because both the base row and the uniform row sum to 1.0.",
+    "documented_levels": [0.05, 0.15, 0.30]
+  }
+}
