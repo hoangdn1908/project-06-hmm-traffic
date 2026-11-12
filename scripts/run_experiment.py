@@ -2,104 +2,110 @@ from __future__ import annotations
 
 import sys
 from pathlib import Path
+from typing import Dict, List
 
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
-from starter import loader, traffic_core
-
+from scripts.generate_sequence import generate_sequence, noisy_emission_matrix  # noqa: E402
+from starter import loader, traffic_core  # noqa: E402
 
 NOISE_LEVELS = [0.05, 0.15, 0.30]
 
 
 def build_noisy_config(base_config: dict, noise_level: float) -> dict:
-    states = base_config["hidden_states"]
-    observations = base_config["observation_symbols"]
-    base_emission = base_config["base_emission_matrix"]
-
+    """Return a copy of base_config with emission_matrix blended for noise_level."""
     config = dict(base_config)
-    noisy_emission = {}
-
-    for state in states:
-        noisy_emission[state] = {}
-
-        for observation in observations:
-            noisy_emission[state][observation] = (
-                (1 - noise_level) * base_emission[state][observation]
-                + noise_level / len(observations)
-            )
-
-    config["emission_matrix"] = noisy_emission
+    config["emission_matrix"] = noisy_emission_matrix(
+        base_config["base_emission_matrix"],
+        noise_level,
+    )
     return config
 
 
-def main():
+def evaluate_sequence(
+    sequence: List[Dict[str, object]],
+    hmm_config: dict,
+    noise_level: float,
+) -> Dict[str, float]:
+    """Run Forward, Viterbi, and accuracy metrics on a synthetic sequence."""
+    observations = [str(row["observation"]) for row in sequence]
+    true_states = [str(row["hidden_state"]) for row in sequence]
+    states = hmm_config["hidden_states"]
+
+    run_config = build_noisy_config(hmm_config, noise_level)
+
+    forward_result = traffic_core.forward(observations, run_config)
+    if len(forward_result) != len(observations):
+        raise AssertionError("Forward did not return one distribution per timestep.")
+
+    final_sum = sum(forward_result[-1].values())
+    if abs(final_sum - 1.0) > 1e-9:
+        raise AssertionError(f"Final Forward posterior does not sum to 1. Got {final_sum}")
+
+    forward_map_states = [max(states, key=lambda s: dist[s]) for dist in forward_result]
+    estimated_states, path_probability = traffic_core.viterbi(observations, run_config)
+    if len(estimated_states) != len(true_states):
+        raise AssertionError("Viterbi path length does not match ground truth length.")
+
+    return {
+        "steps": len(observations),
+        "viterbi_acc": traffic_core.accuracy_against_ground_truth(estimated_states, true_states),
+        "forward_acc": traffic_core.accuracy_against_ground_truth(forward_map_states, true_states),
+        "naive_acc": traffic_core.accuracy_against_ground_truth(observations, true_states),
+        "path_probability": path_probability,
+    }
+
+
+def main() -> None:
     hmm_config = loader.load_hmm_config()
+    scenarios = loader.load_scenarios()
 
-    print("=" * 70)
-    print("Project 06 - Controlled Experiment")
-    print("=" * 70)
-    print()
-
-    print(f"{'Noise':<10}{'Steps':<10}{'Accuracy':<15}{'Path probability'}")
-    print("-" * 70)
+    print("=" * 78)
+    print("Project 06 - Controlled Noise Experiment (Committed seed=42 Sequences)")
+    print("=" * 78)
+    print(f"{'Noise':<8}{'Steps':<8}{'Viterbi Acc':<15}{'Forward Acc':<15}{'Naive Acc':<13}{'Path Prob'}")
+    print("-" * 78)
 
     for noise_level in NOISE_LEVELS:
         sequence = loader.load_sequence(noise_level)
-
-        observations = [row["observation"] for row in sequence]
-        true_states = [row["hidden_state"] for row in sequence]
-
-        run_config = build_noisy_config(hmm_config, noise_level)
-
-        # 1. Forward
-        forward_result = traffic_core.forward(
-            observations,
-            run_config,
-        )
-
-        if len(forward_result) != len(observations):
-            raise AssertionError(
-                "Forward did not return one distribution per timestep."
-            )
-
-        final_sum = sum(forward_result[-1].values())
-
-        if abs(final_sum - 1.0) > 1e-9:
-            raise AssertionError(
-                f"Final Forward posterior does not sum to 1. Got {final_sum}"
-            )
-
-        # 2. Viterbi
-        estimated_states, path_probability = traffic_core.viterbi(
-            observations,
-            run_config,
-        )
-
-        if len(estimated_states) != len(true_states):
-            raise AssertionError(
-                "Viterbi path length does not match ground truth length."
-            )
-
-        # 3. Accuracy
-        accuracy = traffic_core.accuracy_against_ground_truth(
-            estimated_states,
-            true_states,
-        )
-
+        metrics = evaluate_sequence(sequence, hmm_config, noise_level)
         print(
-            f"{noise_level * 100:>5.0f}%"
-            f"{len(observations):>10}"
-            f"{accuracy * 100:>10.2f}%"
-            f"        {path_probability:.6e}"
+            f"{noise_level * 100:>4.0f}%   "
+            f"{metrics['steps']:<8}"
+            f"{metrics['viterbi_acc'] * 100:>6.2f}%        "
+            f"{metrics['forward_acc'] * 100:>6.2f}%        "
+            f"{metrics['naive_acc'] * 100:>6.2f}%      "
+            f"{metrics['path_probability']:.4e}"
         )
 
     print()
-    print("Forward check: PASSED")
-    print("Viterbi check: PASSED")
-    print("Accuracy check: PASSED")
+    print("=" * 78)
+    print("Project 06 - Benchmark Stress & Edge Scenarios (data/scenarios.json)")
+    print("=" * 78)
+    print(f"{'Scenario ID':<29}{'Noise':<8}{'Steps':<7}{'Viterbi':<10}{'Forward':<10}{'Naive'}")
+    print("-" * 78)
+
+    for scenario in scenarios:
+        gen = scenario["generator"]
+        noise_level = float(gen["noise_level"])
+        sequence = generate_sequence(
+            length=int(gen["length"]),
+            seed=int(gen["seed"]),
+            noise_level=noise_level,
+        )
+        metrics = evaluate_sequence(sequence, hmm_config, noise_level)
+        print(
+            f"{scenario['id']:<29}"
+            f"{noise_level * 100:>4.0f}%   "
+            f"{metrics['steps']:<7}"
+            f"{metrics['viterbi_acc'] * 100:>6.2f}%   "
+            f"{metrics['forward_acc'] * 100:>6.2f}%   "
+            f"{metrics['naive_acc'] * 100:>6.2f}%"
+        )
+
     print()
-    print("These accuracy values are the results to use for the Midterm experiment.")
+    print("All Forward, Viterbi, and Accuracy checks PASSED.")
 
 
 if __name__ == "__main__":

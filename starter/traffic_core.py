@@ -1,16 +1,9 @@
-"""Graded AI core for Project 06 — YOUR implementation goes here.
-
-This module intentionally ships EMPTY. Implementing ``forward`` and ``viterbi`` is the graded
-midterm AI core (hidden-state estimation in a Hidden Markov Model). Do not import a third-party
-HMM library to replace these functions: write and explain your own implementation.
-"""
+"""Graded AI core for Project 06 — Hidden Markov Model inference."""
 
 from __future__ import annotations
 
-from typing import Dict, List, Sequence, Tuple
-"""Graded AI core for Project 06 — Hidden Markov Model inference."""
-
 import math
+from typing import Dict, List, Sequence, Tuple
 
 
 def _get_model_parts(hmm_config: dict):
@@ -206,9 +199,9 @@ def viterbi( observations: Sequence[str],hmm_config: dict) -> Tuple[List[str], f
     path = [best_final_state]
 
     for backpointer in reversed(backpointers):
-
         previous_state = backpointer[path[-1]]
-
+        if previous_state is None:
+            previous_state = states[0]
         path.append(previous_state)
 
     path.reverse()

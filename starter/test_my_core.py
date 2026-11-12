@@ -1,56 +1,41 @@
+"""Manual smoke script for starter/traffic_core.py."""
+
+from __future__ import annotations
+
 import json
+import sys
+from pathlib import Path
 
-from traffic_core import forward, viterbi, accuracy_against_ground_truth
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(PROJECT_ROOT))
 
-
-# Đọc config
-with open("data/hmm_config.json", "r", encoding="utf-8") as f:
-    config = json.load(f)
-
-
-# Một chuỗi observation mẫu
-observations = ["LOW", "LOW", "MEDIUM", "HIGH", "HIGH"]
+from starter.traffic_core import accuracy_against_ground_truth, forward, viterbi  # noqa: E402
 
 
-# Chạy Forward
-result = forward(observations, config)
+def main() -> None:
+    with (PROJECT_ROOT / "data" / "hmm_config.json").open("r", encoding="utf-8") as f:
+        config = json.load(f)
 
+    observations = ["LOW", "LOW", "MEDIUM", "HIGH", "HIGH"]
 
-# In kết quả
-for t, probabilities in enumerate(result):
-    print(f"t = {t}")
-    print(probabilities)
-    print("sum =", sum(probabilities.values()))
+    result = forward(observations, config)
+    for t, probabilities in enumerate(result):
+        print(f"t = {t}")
+        print(probabilities)
+        print("sum =", sum(probabilities.values()))
+        print()
+
+    path, probability = viterbi(observations, config)
+    print("Viterbi path:", path)
+    print("Probability:", probability)
     print()
 
-path, probability = viterbi(observations, config)
-
-print("Viterbi path:")
-print(path)
-
-print("Probability:")
-print(probability)
-print()
+    estimated = ["LOW", "LOW", "MEDIUM", "HIGH", "HIGH"]
+    true = ["LOW", "LOW", "MEDIUM", "MEDIUM", "HIGH"]
+    accuracy = accuracy_against_ground_truth(estimated, true)
+    print("Accuracy:", accuracy)
+    print("Accuracy %:", accuracy * 100)
 
 
-print("Accuracy")
-estimated = [
-    "LOW",
-    "LOW",
-    "MEDIUM",
-    "HIGH",
-    "HIGH"
-]
-
-true = [
-    "LOW",
-    "LOW",
-    "MEDIUM",
-    "MEDIUM",
-    "HIGH"
-]
-
-accuracy = accuracy_against_ground_truth(estimated, true)
-
-print("Accuracy:", accuracy)
-print("Accuracy %:", accuracy * 100)
+if __name__ == "__main__":
+    main()
